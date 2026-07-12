@@ -1,252 +1,258 @@
 -- ============================================
--- СКРИПТ ЖЁСТКОГО ТРОЛЛИНГА (SERVER-SIDE)
--- Delta Executor / Roblox
+-- СЕРВЕР-САЙД ТРОЛЛИНГ (Delta Executor)
+-- Использует RemoteSpy и FireServer
 -- ============================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
 
 -- ============================================
--- ФУНКЦИИ ТРОЛЛИНГА
+-- ФУНКЦИЯ ДЛЯ ПОИСКА РЕМОУТОВ
 -- ============================================
 
--- 1. Бесконечный полёт (нокдаун)
-local function FlyHack(target)
-    if not target or not target.Character then return end
-    local char = target.Character
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChild("Humanoid")
-    if hrp and humanoid then
-        humanoid.PlatformStand = true
-        hrp.Velocity = Vector3.new(0, 50, 0)
-        game:GetService("RunService").Heartbeat:Connect(function()
-            if hrp and humanoid then
-                hrp.Velocity = Vector3.new(0, 50, 0)
-                hrp.CFrame = hrp.CFrame * CFrame.Angles(0, 0.1, 0)
-            end
-        end)
-    end
-end
-
--- 2. Спам звуков
-local function SoundSpam(target)
-    if not target then return end
-    for i = 1, 20 do
-        local sound = Instance.new("Sound")
-        sound.SoundId = "rbxassetid://9120149292" -- звук кек
-        sound.Volume = 10
-        sound.Parent = target.Character or target
-        sound:Play()
-        task.wait(0.1)
-    end
-end
-
--- 3. Взрыв эффект
-local function Explode(target)
-    if not target or not target.Character then return end
-    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local explosion = Instance.new("Explosion")
-        explosion.Position = hrp.Position
-        explosion.BlastRadius = 30
-        explosion.BlastPressure = 100000
-        explosion.ExplosionType = Enum.ExplosionType.NoCraters
-        explosion.Parent = workspace
-        explosion:Destroy()
-    end
-end
-
--- 4. Обездвиживание
-local function Freeze(target)
-    if not target or not target.Character then return end
-    local humanoid = target.Character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-        humanoid.PlatformStand = true
-    end
-end
-
--- 5. Ослепление (чёрный экран)
-local function Blind(target)
-    if not target then return end
-    local gui = Instance.new("ScreenGui")
-    gui.Parent = target.PlayerGui
+local function FindRemotes()
+    local remotes = {}
     
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(10, 0, 10, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    frame.BackgroundTransparency = 0
-    frame.Parent = gui
-end
-
--- 6. Спам сообщений в чат
-local function ChatSpam(target)
-    for i = 1, 50 do
-        game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents"):FindFirstChild("SayMessageRequest"):FireServer("/w " .. target.Name .. " ТЫ ТРОЛЛЕН!", "All")
-        task.wait(0.05)
+    -- Поиск в ReplicatedStorage
+    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+            table.insert(remotes, v)
+        end
     end
-end
-
--- 7. Переворот камеры
-local function FlipCamera(target)
-    if not target then return end
-    local camera = workspace.CurrentCamera
-    if camera then
-        camera.CFrame = CFrame.new(camera.CFrame.Position) * CFrame.Angles(math.pi, 0, 0)
+    
+    -- Поиск в Workspace
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+            table.insert(remotes, v)
+        end
     end
+    
+    -- Поиск в Players
+    for _, plr in ipairs(Players:GetPlayers()) do
+        for _, v in ipairs(plr:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                table.insert(remotes, v)
+            end
+        end
+    end
+    
+    return remotes
 end
 
--- 8. Спам частиц
-local function ParticleSpam(target)
-    if not target or not target.Character then return end
-    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        for i = 1, 30 do
-            local particle = Instance.new("ParticleEmitter")
-            particle.Parent = hrp
-            particle.Rate = 1000
-            particle.SpreadAngle = Vector2.new(360, 360)
-            particle.Texture = "rbxassetid://3576956588"
-            particle.Lifetime = NumberRange.new(5)
-            particle.Speed = NumberRange.new(50)
-            task.wait(0.1)
+-- ============================================
+-- АВТОМАТИЧЕСКИЙ СПАМ РЕМОУТОВ
+-- ============================================
+
+local function SpamRemotes(targetName)
+    local remotes = FindRemotes()
+    local target = nil
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if string.lower(plr.Name):find(string.lower(targetName)) then
+            target = plr
+            break
+        end
+    end
+    
+    if not target then
+        print("❌ Игрок не найден")
+        return
+    end
+    
+    print("🔍 Найдено ремоутов: " .. #remotes)
+    
+    -- Спам на все ремоуты
+    for _, remote in ipairs(remotes) do
+        if remote:IsA("RemoteEvent") then
+            -- Пробуем разные варианты аргументов
+            local args = {
+                target,
+                target.Character,
+                target.Character and target.Character:FindFirstChild("HumanoidRootPart"),
+                "kick",
+                "ban",
+                "kill",
+                target.Name,
+                target.UserId
+            }
+            
+            for _, arg in ipairs(args) do
+                pcall(function()
+                    remote:FireServer(arg)
+                    print("✅ Отправлено в " .. remote.Name)
+                end)
+            end
+        elseif remote:IsA("RemoteFunction") then
+            pcall(function()
+                remote:InvokeServer(target)
+                print("✅ Invoked " .. remote.Name)
+            end)
         end
     end
 end
 
--- 9. Кнопка самоубийства
-local function Kill(target)
-    if not target or not target.Character then return end
-    local humanoid = target.Character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.Health = 0
-    end
-end
+-- ============================================
+-- КИК ЧЕРЕЗ REMOTE
+-- ============================================
 
--- 10. Выкинуть из игры (краш)
-local function Crash(target)
+local function KickPlayer(targetName)
+    local target = nil
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if string.lower(plr.Name):find(string.lower(targetName)) then
+            target = plr
+            break
+        end
+    end
+    
     if not target then return end
-    for i = 1, 100 do
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(1000, 1000, 1000)
-        part.Position = Vector3.new(0, 0, 0)
-        part.Anchored = true
-        part.Transparency = 1
-        part.Parent = workspace
-        task.wait()
+    
+    -- Поиск ремоута для кика
+    local kickRemote = nil
+    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+        if v:IsA("RemoteEvent") and string.lower(v.Name):find("kick") then
+            kickRemote = v
+            break
+        end
+    end
+    
+    if kickRemote then
+        pcall(function()
+            kickRemote:FireServer(target)
+            print("✅ Кик отправлен")
+        end)
     end
 end
 
 -- ============================================
--- GUI ДЛЯ ТРОЛЛИНГА
+-- ФЛУД КОМАНД В ЧАТ
+-- ============================================
+
+local function ChatFlood(targetName)
+    local target = nil
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if string.lower(plr.Name):find(string.lower(targetName)) then
+            target = plr
+            break
+        end
+    end
+    
+    if not target then return end
+    
+    local chatRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatRemote then
+        local sayRemote = chatRemote:FindFirstChild("SayMessageRequest")
+        if sayRemote then
+            for i = 1, 100 do
+                pcall(function()
+                    sayRemote:FireServer("/w " .. target.Name .. " ТЫ ТРОЛЛЕН!", "All")
+                end)
+                task.wait(0.01)
+            end
+            print("✅ Чат-флуд запущен")
+        end
+    end
+end
+
+-- ============================================
+-- GUI
 -- ============================================
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player.PlayerGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 350, 0, 450)
-mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
-mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-mainFrame.BackgroundTransparency = 0.05
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 150)
+frame.Position = UDim2.new(0.5, -150, 0.5, -75)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
 
--- Заголовок
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "🔥 ТРОЛЛ-ПАНЕЛЬ 🔥"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "🔥 СЕРВЕР-ТРОЛЛИНГ 🔥"
 title.TextColor3 = Color3.fromRGB(255, 50, 50)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-title.Parent = mainFrame
+title.TextSize = 16
+title.Parent = frame
 
--- Поле ввода ника
 local nameBox = Instance.new("TextBox")
 nameBox.Size = UDim2.new(0.9, 0, 0, 30)
-nameBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+nameBox.Position = UDim2.new(0.05, 0, 0.25, 0)
 nameBox.PlaceholderText = "Ник цели"
 nameBox.Text = ""
 nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 nameBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 nameBox.Font = Enum.Font.Gotham
 nameBox.TextSize = 14
-nameBox.Parent = mainFrame
+nameBox.Parent = frame
 
--- Список кнопок
-local buttons = {
-    {"🚀 ПОЛЁТ", "fly"},
-    {"🔊 ЗВУКИ", "sound"},
-    {"💥 ВЗРЫВ", "explode"},
-    {"🧊 ЗАМОРОЗКА", "freeze"},
-    {"🌑 ОСЛЕПЛЕНИЕ", "blind"},
-    {"💬 СПАМ ЧАТ", "chat"},
-    {"🔄 ПЕРЕВОРОТ", "flip"},
-    {"✨ ЧАСТИЦЫ", "particles"},
-    {"💀 УБИТЬ", "kill"},
-    {"💀 КРАШ", "crash"}
-}
+local btn1 = Instance.new("TextButton")
+btn1.Size = UDim2.new(0.4, 0, 0, 30)
+btn1.Position = UDim2.new(0.05, 0, 0.55, 0)
+btn1.Text = "🔍 СПАМ РЕМОУТ"
+btn1.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn1.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+btn1.Font = Enum.Font.GothamBold
+btn1.TextSize = 12
+btn1.Parent = frame
 
-local function CreateButton(text, yPos, action)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0, 30)
-    btn.Position = UDim2.new(0.05, 0, yPos, 0)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 14
-    btn.Parent = mainFrame
-    
-    btn.MouseButton1Click:Connect(function()
-        local targetName = nameBox.Text
-        if targetName == "" then
-            print("❌ Введи ник!")
-            return
-        end
-        
-        local target = nil
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if string.lower(plr.Name):find(string.lower(targetName)) then
-                target = plr
-                break
-            end
-        end
-        
-        if not target then
-            print("❌ Игрок не найден: " .. targetName)
-            return
-        end
-        
-        print("🎯 Троллинг " .. target.Name .. " -> " .. text)
-        
-        if action == "fly" then FlyHack(target) end
-        if action == "sound" then SoundSpam(target) end
-        if action == "explode" then Explode(target) end
-        if action == "freeze" then Freeze(target) end
-        if action == "blind" then Blind(target) end
-        if action == "chat" then ChatSpam(target) end
-        if action == "flip" then FlipCamera(target) end
-        if action == "particles" then ParticleSpam(target) end
-        if action == "kill" then Kill(target) end
-        if action == "crash" then Crash(target) end
-    end)
-end
+btn1.MouseButton1Click:Connect(function()
+    local target = nameBox.Text
+    if target == "" then
+        print("❌ Введи ник")
+        return
+    end
+    SpamRemotes(target)
+end)
 
--- Генерация кнопок
-for i, data in ipairs(buttons) do
-    local yPos = 0.18 + (i - 1) * 0.08
-    CreateButton(data[1], yPos, data[2])
-end
+local btn2 = Instance.new("TextButton")
+btn2.Size = UDim2.new(0.4, 0, 0, 30)
+btn2.Position = UDim2.new(0.55, 0, 0.55, 0)
+btn2.Text = "💬 ФЛУД ЧАТ"
+btn2.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn2.BackgroundColor3 = Color3.fromRGB(200, 150, 30)
+btn2.Font = Enum.Font.GothamBold
+btn2.TextSize = 12
+btn2.Parent = frame
 
-print("✅ Тролл-панель загружена!")
-print("🔥 Введи ник и жми на кнопку для троллинга!")
+btn2.MouseButton1Click:Connect(function()
+    local target = nameBox.Text
+    if target == "" then
+        print("❌ Введи ник")
+        return
+    end
+    ChatFlood(target)
+end)
+
+local btn3 = Instance.new("TextButton")
+btn3.Size = UDim2.new(0.9, 0, 0, 30)
+btn3.Position = UDim2.new(0.05, 0, 0.75, 0)
+btn3.Text = "👢 КИК (если есть remote)"
+btn3.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn3.BackgroundColor3 = Color3.fromRGB(200, 30, 150)
+btn3.Font = Enum.Font.GothamBold
+btn3.TextSize = 12
+btn3.Parent = frame
+
+btn3.MouseButton1Click:Connect(function()
+    local target = nameBox.Text
+    if target == "" then
+        print("❌ Введи ник")
+        return
+    end
+    KickPlayer(target)
+end)
+
+print("=====================================")
+print("🔥 СЕРВЕР-САЙД ТРОЛЛИНГ ЗАГРУЖЕН")
+print("=====================================")
+print("📌 Инструкция:")
+print("1. Введи ник цели")
+print("2. Нажми 'СПАМ РЕМОУТ' - попытается найти и заспамить все ремоуты")
+print("3. 'ФЛУД ЧАТ' - заспамит в личку")
+print("4. 'КИК' - попытается кикнуть через remote")
+print("=====================================")
+print("⚠️ Работает только если игра использует ремоуты без проверок")
