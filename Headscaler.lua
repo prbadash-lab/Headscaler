@@ -1,114 +1,120 @@
---[[
-    Скрипт для увеличения головы игрока по нику (Delta / Garry's Mod)
-    Использование: 
-        - В консоли: head_scale <ник> <значение_от_1_до_10>
-        - Или через меню (привязано к клавише F4 по умолчанию)
-]]
+-- ============================================
+-- СКРИПТ УВЕЛИЧЕНИЯ ГОЛОВЫ (Delta Executor / Roblox)
+-- ============================================
 
-local PLAYER_META = FindMetaTable("Player")
-if not PLAYER_META then return end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Хранилище масштабов
-local headScales = {}
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
 
--- Функция применения масштаба
-local function SetHeadScale(ply, scale)
-    if not IsValid(ply) then return end
-    scale = math.Clamp(scale, 0.5, 10.0)
-    headScales[ply:SteamID()] = scale
-    
-    -- Применяем через модельку (бонусная кость "ValveBiped.Bip01_Head1")
-    ply:SetNWFloat("HeadScale", scale)
-    
-    -- Принудительное обновление для клиента
-    net.Start("UpdateHeadScale")
-    net.WriteEntity(ply)
-    net.WriteFloat(scale)
-    net.Broadcast()
-end
+-- Создаём GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player.PlayerGui
 
--- Хук на спавн игрока
-hook.Add("PlayerSpawn", "RestoreHeadScale", function(ply)
-    local sid = ply:SteamID()
-    if headScales[sid] then
-        timer.Simple(0.5, function()
-            if IsValid(ply) then
-                SetHeadScale(ply, headScales[sid])
-            end
-        end)
-    end
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 100)
+frame.Position = UDim2.new(0.5, -150, 0.5, -50)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.1
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+-- Заголовок
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Text = "Увеличение головы"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundTransparency = 1
+title.Parent = frame
+
+-- Поле для ника
+local nameBox = Instance.new("TextBox")
+nameBox.Size = UDim2.new(0.6, 0, 0, 25)
+nameBox.Position = UDim2.new(0.05, 0, 0.35, 0)
+nameBox.PlaceholderText = "Ник игрока"
+nameBox.Text = player.Name
+nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+nameBox.Parent = frame
+
+-- Ползунок
+local slider = Instance.new("Slider")
+slider.Size = UDim2.new(0.6, 0, 0, 25)
+slider.Position = UDim2.new(0.05, 0, 0.7, 0)
+slider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+slider.Min = 0.5
+slider.Max = 10
+slider.Value = 1
+slider.Parent = frame
+
+-- Значение ползунка
+local valueLabel = Instance.new("TextLabel")
+valueLabel.Size = UDim2.new(0.2, 0, 0, 25)
+valueLabel.Position = UDim2.new(0.75, 0, 0.7, 0)
+valueLabel.Text = "x1.0"
+valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+valueLabel.BackgroundTransparency = 1
+valueLabel.Parent = frame
+
+-- Кнопка применения
+local applyBtn = Instance.new("TextButton")
+applyBtn.Size = UDim2.new(0.2, 0, 0, 25)
+applyBtn.Position = UDim2.new(0.75, 0, 0.35, 0)
+applyBtn.Text = "Применить"
+applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+applyBtn.Parent = frame
+
+-- Обновление значения на ползунке
+slider:GetPropertyChangedSignal("Value"):Connect(function()
+    valueLabel.Text = "x" .. string.format("%.1f", slider.Value)
 end)
 
--- Команда для изменения размера головы
-concommand.Add("head_scale", function(caller, args)
-    if not IsValid(caller) then return end
-    local targetName = args[1]
-    local scale = tonumber(args[2]) or 1.0
-    
-    if not targetName then
-        caller:PrintMessage(HUD_PRINTTALK, "Использование: head_scale <ник игрока> <значение (0.5 - 10)>")
-        return
+-- Функция изменения головы
+local function SetHeadScale(targetPlayer, scale)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local head = targetPlayer.Character:FindFirstChild("Head")
+    if head then
+        head.Size = Vector3.new(scale, scale, scale) * 2
+        -- Для MeshPart (если используется)
+        for _, part in ipairs(head:GetChildren()) do
+            if part:IsA("SpecialMesh") or part:IsA("MeshPart") then
+                part.Scale = Vector3.new(scale, scale, scale)
+            end
+        end
     end
-    
+end
+
+-- Применение по кнопке
+applyBtn.MouseButton1Click:Connect(function()
+    local targetName = nameBox.Text
+    local scale = slider.Value
     local found = false
-    for _, ply in ipairs(player.GetAll()) do
-        if string.find(string.lower(ply:Name()), string.lower(targetName)) then
-            SetHeadScale(ply, scale)
-            caller:PrintMessage(HUD_PRINTTALK, "Голова " .. ply:Name() .. " установлена на x" .. string.format("%.2f", scale))
+    
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if string.lower(plr.Name):find(string.lower(targetName)) then
+            SetHeadScale(plr, scale)
             found = true
             break
         end
     end
     
     if not found then
-        caller:PrintMessage(HUD_PRINTTALK, "Игрок не найден: " .. targetName)
+        print("Игрок не найден: " .. targetName)
     end
 end)
 
--- Клиентский Net-обработчик
-if CLIENT then
-    net.Receive("UpdateHeadScale", function()
-        local ply = net.ReadEntity()
-        local scale = net.ReadFloat()
-        if IsValid(ply) then
-            ply:SetNWFloat("HeadScale", scale)
-        end
-    end)
-    
-    -- Хук для рендера головы (изменение размера)
-    hook.Add("Think", "ApplyHeadScaleClient", function()
-        for _, ply in ipairs(player.GetAll()) do
-            if IsValid(ply) and ply:GetNWFloat("HeadScale", 1.0) ~= 1.0 then
-                local scale = ply:GetNWFloat("HeadScale", 1.0)
-                -- Применяем через бонусную кость
-                ply:SetBoneScale(ply:LookupBone("ValveBiped.Bip01_Head1"), scale)
-            end
-        end
-    end)
-end
-
--- Создание простого слайдера (через консольную переменную)
-CreateConVar("head_scale_slider", "1.0", {FCVAR_ARCHIVE})
-cvars.AddChangeCallback("head_scale_slider", function(name, old, new)
-    local ply = LocalPlayer()
-    if IsValid(ply) then
-        RunConsoleCommand("head_scale", ply:Name(), new)
+-- Автоприменение для себя при спавне
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    task.wait(0.1)
+    local scale = slider.Value
+    if scale ~= 1 then
+        SetHeadScale(player, scale)
     end
 end)
 
--- Инструкция в консоль
-print("=====================================")
-print("[Ryzen] Скрипт увеличения головы")
-print("Команда: head_scale <ник> <0.5-10>")
-print("Слайдер: head_scale_slider (в консоли)")
-print("=====================================")
-
--- Бинд на F4 для открытия слайдера (клиент)
-if CLIENT then
-    hook.Add("PlayerBindPress", "HeadScaleBind", function(ply, bind)
-        if bind == "F4" then
-            ply:PrintMessage(HUD_PRINTTALK, "Введите head_scale_slider в консоли для регулировки")
-            return true
-        end
-    end)
-end
+print("Скрипт загружен! Открой GUI и увеличь голову.")
